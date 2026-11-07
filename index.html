@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Roll It Up!</title>
+<style>
+  :root{
+    --tomato:#ff5a36; --cobalt:#2340d8; --butter:#ffd84d; --ink:#1b1a2e; --mint:#34d1a0; --paper:#ffffff;
+    --shadow:4px 4px 0 var(--ink);
+    --font:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Nunito","Varela Round","Segoe UI",system-ui,sans-serif;
+    --sat:env(safe-area-inset-top,0px); --sar:env(safe-area-inset-right,0px); --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;overflow:hidden;background:#20203a;}
+  body{font-family:var(--font);color:var(--ink);touch-action:none;
+    -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none;}
+  button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none;}
+  button:focus-visible{outline:3px solid var(--butter);outline-offset:3px;}
+  .hidden{display:none !important;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;left:0;right:0;top:0;padding:calc(10px + var(--sat)) calc(10px + var(--sar)) 0 calc(10px + var(--sal));
+    display:flex;align-items:flex-start;gap:10px;pointer-events:none;z-index:5;}
+  .sticker{background:var(--paper);border:3px solid var(--ink);border-radius:14px;box-shadow:var(--shadow);}
+  #sizeBox{padding:4px 12px 6px;min-width:96px;}
+  #sizeBox .lbl{font-size:12px;font-weight:800;opacity:.6;}
+  #sizeVal{font-size:clamp(18px,3.2vw,26px);font-weight:900;line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  #midBox{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;}
+  #lvlName{font-size:clamp(13px,2.2vw,16px);font-weight:900;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  #progWrap{width:min(320px,100%);height:18px;padding:0;border-radius:10px;overflow:hidden;position:relative;}
+  #progFill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--mint);transition:width .2s;}
+  #progTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;}
+  #rightBox{display:flex;gap:8px;align-items:flex-start;}
+  #timeBox{padding:6px 10px;font-size:clamp(13px,2.2vw,16px);font-weight:900;font-variant-numeric:tabular-nums;}
+  #pauseBtn{pointer-events:auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;}
+  #pauseBtn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink);}
+
+  #toast{position:fixed;left:50%;top:calc(92px + var(--sat));transform:translateX(-50%);z-index:6;pointer-events:none;
+    padding:8px 16px;font-weight:900;font-size:clamp(14px,2.4vw,18px);white-space:nowrap;background:var(--butter);
+    transition:opacity .25s, transform .25s;opacity:0;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(4px);}
+
+  #hint{position:fixed;left:50%;bottom:calc(28px + var(--sab));transform:translateX(-50%);z-index:5;pointer-events:none;text-align:center;
+    padding:10px 18px;font-weight:900;font-size:clamp(14px,2.6vw,20px);transition:opacity .5s;max-width:92vw;}
+  #hint small{display:block;font-size:.72em;font-weight:800;opacity:.7;margin-top:2px;}
+
+  /* ---------- Overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    padding:calc(12px + var(--sat)) calc(12px + var(--sar)) calc(12px + var(--sab)) calc(12px + var(--sal));
+    background:rgba(27,26,46,.55);}
+  .card{background:var(--paper);border:3px solid var(--ink);border-radius:22px;box-shadow:6px 6px 0 var(--ink);
+    width:min(440px,100%);max-height:100%;overflow:auto;padding:18px 20px 20px;text-align:center;}
+  .card h2{font-size:clamp(24px,4.5vw,34px);font-weight:900;line-height:1.05;margin-bottom:10px;}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .btn{min-height:48px;padding:10px 18px;border:3px solid var(--ink);border-radius:14px;box-shadow:var(--shadow);
+    font-size:clamp(15px,2.6vw,18px);font-weight:900;background:var(--paper);flex:1 1 150px;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink);}
+  .btn.primary{background:var(--cobalt);color:#fff;}
+  .btn.pair{background:var(--cobalt);color:#fff;}
+  .btn[disabled]{opacity:.55;cursor:default;transform:none;box-shadow:var(--shadow);}
+  .btn .ad{display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:var(--butter);color:var(--ink);
+    border:2px solid var(--ink);border-radius:6px;padding:0 5px;height:20px;}
+  .stack{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+  .stack > .btn{flex:0 0 auto;}
+  .linkrow{display:flex;gap:18px;justify-content:center;margin-top:14px;}
+  .link{font-weight:900;font-size:15px;text-decoration:underline;text-underline-offset:3px;padding:6px 4px;min-height:36px;}
+  .muted{opacity:.65;font-weight:800;font-size:14px;}
+
+  /* title lettering: each letter tumbles a little, like it is rolling */
+  .logo{display:flex;justify-content:center;gap:.28em;margin:2px 0 10px;flex-wrap:wrap;}
+  .logo span{display:inline-block;font-weight:900;font-size:clamp(30px,6vw,46px);line-height:1;color:var(--tomato);
+    -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink);letter-spacing:.02em;}
+
+
+  #loading{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#ff5a36;gap:14px;}
+  #loading .ball{width:46px;height:46px;border:4px solid var(--ink);border-radius:16px;background:var(--tomato);animation:tumble 1s linear infinite;
+    background-image:radial-gradient(circle at 34% 46%, var(--ink) 0 3px, transparent 3.5px),radial-gradient(circle at 66% 46%, var(--ink) 0 3px, transparent 3.5px);}
+  #loading p{font-weight:900;color:var(--ink);}
+  @keyframes tumble{to{transform:rotate(360deg);}}
+
+  .stars{display:flex;justify-content:center;gap:6px;margin:4px 0 8px;font-size:40px;line-height:1;}
+  .stars .s{filter:grayscale(1);opacity:.3;transform:scale(.8);transition:all .3s;}
+  .stars .s.on{filter:none;opacity:1;transform:scale(1);}
+  .stats{display:flex;justify-content:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .stat{border:3px solid var(--ink);border-radius:12px;padding:4px 12px;min-width:90px;}
+  .stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums;}
+  .stat span{font-size:12px;font-weight:800;opacity:.65;}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 12px;}
+  .lvl{border:3px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);padding:8px 4px;min-height:84px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--paper);}
+  .lvl .e{font-size:26px;line-height:1;}
+  .lvl .n{font-size:12px;font-weight:900;}
+  .lvl .st{font-size:12px;letter-spacing:1px;}
+  .lvl[disabled]{opacity:.45;box-shadow:none;cursor:default;}
+  .lvl.cur{background:var(--butter);}
+
+  .skins{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 12px;}
+  .skin{border:3px solid var(--ink);border-radius:14px;padding:8px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:92px;background:var(--paper);}
+  .skin canvas{position:static;width:40px;height:40px;}
+  .skin .p{font-size:12px;font-weight:900;}
+  .skin.eq{background:var(--butter);}
+  .coins{font-weight:900;font-size:18px;margin-bottom:4px;}
+
+  #adBlocker{position:fixed;inset:0;z-index:30;background:rgba(27,26,46,.7);display:flex;align-items:center;justify-content:center;}
+  #adBlocker .ball{width:40px;height:40px;border:4px solid #fff;border-radius:10px;animation:tumble 1s linear infinite;}
+
+  @media (max-height:500px){
+    .card{padding:12px 16px 14px;}
+    .card h2{font-size:24px;margin-bottom:6px;}
+    .stars{font-size:30px;margin:0 0 6px;}
+    .stats{margin-bottom:8px;}
+    .stat b{font-size:17px;}
+    .btn{min-height:44px;padding:6px 14px;}
+    .logo span{font-size:30px;}
+    .grid{grid-template-columns:repeat(6,1fr);}
+    .lvl{min-height:70px;}
+    .skins{grid-template-columns:repeat(8,1fr);}
+  }
+  @media (prefers-reduced-motion:reduce){ #loading .ball,#adBlocker .ball{animation:none;} #toast{transition:none;} }
+</style>
+</head>
+<body>
+<canvas id="cvs" tabindex="0" aria-label="Roll It Up game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="sizeBox" class="sticker"><div class="lbl" id="sizeLbl">Size</div><div id="sizeVal">2.0 cm</div></div>
+  <div id="midBox">
+    <div id="lvlName" class="sticker">Level 1</div>
+    <div id="progWrap" class="sticker"><div id="progFill"></div><div id="progTxt">0</div></div>
+  </div>
+  <div id="rightBox">
+    <div id="timeBox" class="sticker">0:00</div>
+    <button id="pauseBtn" class="sticker" aria-label="Pause">❚❚</button>
+  </div>
+</div>
+<div id="toast" class="sticker"></div>
+<div id="hint" class="sticker hidden"></div>
+
+<!-- Pause / menu -->
+<div id="pauseOv" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="card">
+    <div class="logo" id="pauseLogo"></div>
+    <div class="stack">
+      <button class="btn primary" id="resumeBtn">Resume</button>
+      <div class="row">
+        <button class="btn" id="levelsBtn">Levels</button>
+        <button class="btn" id="shopBtn">Ball shop</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="sfxBtn">Sound: On</button>
+        <button class="btn" id="musicBtn">Music: On</button>
+      </div>
+      <button class="btn hidden" id="endRunBtn">End run</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level select -->
+<div id="levelsOv" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="card">
+    <h2 id="levelsTitle">Levels</h2>
+    <div class="grid" id="levelGrid"></div>
+    <div class="row"><button class="btn" id="levelsBack">Back</button></div>
+  </div>
+</div>
+
+<!-- Shop -->
+<div id="shopOv" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="card">
+    <h2 id="shopTitle">Ball shop</h2>
+    <div class="coins" id="shopCoins">🪙 0</div>
+    <div class="skins" id="skinGrid"></div>
+    <div class="stack">
+      <button class="btn" id="freeCoinsBtn"><span class="ad">▶ AD</span><span id="freeCoinsTxt">Free coins +40</span></button>
+      <button class="btn" id="shopBack">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level complete -->
+<div id="clearOv" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="card">
+    <h2 id="clearTitle">Level clear!</h2>
+    <div class="stars" id="clearStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="stats">
+      <div class="stat"><b id="clearTime">0:00</b><span id="clearTimeLbl">Time</span></div>
+      <div class="stat"><b id="clearSize">0</b><span id="clearSizeLbl">Size</span></div>
+      <div class="stat"><b id="clearCoins">+0</b><span>🪙</span></div>
+    </div>
+    <div class="row">
+      <button class="btn pair" id="doubleBtn"><span class="ad">▶ AD</span><span id="doubleTxt">Double coins</span></button>
+      <button class="btn pair" id="nextBtn">Next level</button>
+    </div>
+    <div class="linkrow">
+      <button class="link" id="replayBtn">Replay</button>
+      <button class="link" id="clearMenuBtn">Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Endless results -->
+<div id="runOv" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="card">
+    <h2 id="runTitle">Run over</h2>
+    <div class="stats">
+      <div class="stat"><b id="runSize">0</b><span id="runSizeLbl">Size</span></div>
+      <div class="stat"><b id="runBest">0</b><span id="runBestLbl">Best</span></div>
+      <div class="stat"><b id="runCoins">+0</b><span>🪙</span></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="runAgainBtn">Play again</button>
+      <button class="btn" id="runMenuBtn">Menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="adBlocker" class="hidden" aria-live="polite"><div class="ball"></div></div>
+<div id="loading"><div class="ball"></div><p id="loadingTxt">Loading…</p></div>
+
+<script>
+(() => {
+"use strict";
+
+/* =========================================================================
+   Build flags
+   ========================================================================= */
+// Set to false for the Basic Launch build (CrazyGames disables ads there and
+// rewarded buttons must not appear without effect).
+const ADS_ENABLED = false;
+const VERSION = "1.0.0";
+const SAVE_KEY = "rollitup.save.v1";
+const DEBUG = /[?&]debug=1/.test(location.search);
+
+/* =========================================================================
+   Utilities
+   ========================================================================= */
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+function mulberry32(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const $ = id => document.getElementById(id);
+function fmtTime(s){ s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+
+/* =========================================================================
+   Localization
+   ========================================================================= */
+const STR = {
+  en: {
+    size: "Size", left: "{n} left", level: "Level {n}", loading: "Loading…",
+    l1: "Kitchen Table", l2: "Arcade", l3: "Neighborhood", l4: "Downtown", l5: "Cosmic", endless: "Endless Universe",
+    hintTouch: "Drag anywhere to roll", hintKeys: "WASD, arrow keys, or drag with the mouse",
+    hintGoal: "Roll over smaller things to grow", resume: "Resume", levels: "Levels", shop: "Ball shop",
+    sound: "Sound", music: "Music", on: "On", off: "Off", back: "Back", endRun: "End run",
+    clear: "Level clear!", time: "Time", next: "Next level", double: "Double coins", doubled: "Coins doubled",
+    replay: "Replay", menu: "Menu", noAd: "No ad available right now. Try again later.",
+    unlocked: "You can roll up bigger things now!", cosmic: "Cosmic scale!", locked: "Clear level 3",
+    runOver: "Run over", best: "Best", again: "Play again", newBest: "New best!",
+    final: "You rolled up the universe!", freeCoins: "Free coins +{n}", wait: "Free coins in {s}",
+    equip: "Equip", owned: "Owned", needCoins: "Not enough coins yet. Clear levels to earn more.",
+    paused: "Paused", lastOnes: "Find the last ones!", allDone: "All levels",
+    sk0:"Tomato", sk1:"Mint", sk2:"Grape", sk3:"Butter", sk4:"Candy", sk5:"Polka", sk6:"Galaxy", sk7:"Gold"
+  },
+  ko: {
+    size: "크기", left: "{n}개 남음", level: "레벨 {n}", loading: "불러오는 중…",
+    l1: "식탁", l2: "오락실", l3: "동네", l4: "도심", l5: "우주", endless: "무한 우주",
+    hintTouch: "화면 아무 곳이나 드래그해서 굴려요", hintKeys: "WASD, 방향키, 또는 마우스 드래그",
+    hintGoal: "나보다 작은 것을 굴려 모으면 커져요", resume: "계속하기", levels: "레벨 선택", shop: "공 꾸미기",
+    sound: "효과음", music: "음악", on: "켜짐", off: "꺼짐", back: "뒤로", endRun: "이번 판 끝내기",
+    clear: "레벨 클리어!", time: "시간", next: "다음 레벨", double: "코인 2배", doubled: "코인 2배 받음",
+    replay: "다시 하기", menu: "메뉴", noAd: "지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요.",
+    unlocked: "이제 더 큰 것도 굴릴 수 있어요!", cosmic: "우주 스케일!", locked: "레벨 3 클리어 필요",
+    runOver: "이번 판 결과", best: "최고", again: "다시 하기", newBest: "최고 기록!",
+    final: "우주를 통째로 굴려 모았어요!", freeCoins: "무료 코인 +{n}", wait: "무료 코인 {s} 후",
+    equip: "장착", owned: "보유", needCoins: "코인이 아직 부족해요. 레벨을 깨서 모아 보세요.",
+    paused: "일시정지", lastOnes: "마지막 몇 개를 찾아요!", allDone: "모든 레벨",
+    sk0:"토마토", sk1:"민트", sk2:"포도", sk3:"버터", sk4:"캔디", sk5:"물방울", sk6:"은하", sk7:"황금"
+  }
+};
+let LANG = "en";
+function t(k, vars){ let s = (STR[LANG] && STR[LANG][k]) || STR.en[k] || k; if (vars) for (const v in vars) s = s.replace("{" + v + "}", vars[v]); return s; }
+
+/* =========================================================================
+   CrazyGames SDK wrapper — every call is guarded so the game never depends on it
+   ========================================================================= */
+const CG = { sdk: null, env: "none", adblock: false, adsDisabled: false, muteBySdk: false, playing: false, adActive: false };
+async function initSDK(){
+  try {
+    if (!(window.CrazyGames && window.CrazyGames.SDK)) return;
+    const sdk = window.CrazyGames.SDK;
+    await Promise.race([sdk.init(), new Promise((_, rej) => setTimeout(() => rej(new Error("sdk timeout")), 4000))]);
+    CG.env = sdk.environment;
+    if (CG.env !== "crazygames" && CG.env !== "local") return;
+    CG.sdk = sdk;
+    try { CG.muteBySdk = !!(sdk.game.settings && sdk.game.settings.muteAudio); } catch (e) {}
+    try { sdk.game.addSettingsChangeListener(s => { CG.muteBySdk = !!(s && s.muteAudio); Sound.apply(); }); } catch (e) {}
+    try { const info = sdk.user && sdk.user.systemInfo; if (info && info.locale) setLang(info.locale); } catch (e) {}
+    if (ADS_ENABLED) {
+      try { CG.adblock = !!(await Promise.race([sdk.ad.hasAdblock(), new Promise(r => setTimeout(() => r(false), 2500))])); } catch (e) {}
+    }
+  } catch (e) { CG.sdk = null; }
+}
+function sdkCall(fn){ if (!CG.sdk) return; try { fn(CG.sdk); } catch (e) { if (DEBUG) console.warn("sdk", e); } }
+function setGameplay(on){
+  if (CG.playing === on) return;
+  CG.playing = on;
+  sdkCall(s => on ? s.game.gameplayStart() : s.game.gameplayStop());
+}
+function adsAvailable(){ return ADS_ENABLED && !!CG.sdk && !CG.adblock && !CG.adsDisabled; }
+// Shows a video ad. Resolves true only when the ad finished. The UI is blocked until a callback arrives.
+function showAd(type){
+  return new Promise(resolve => {
+    if (!adsAvailable() || CG.adActive) return resolve(false);
+    CG.adActive = true;
+    const blocker = $("adBlocker"); blocker.classList.remove("hidden");
+    let done = false;
+    const finish = ok => {
+      if (done) return; done = true; CG.adActive = false;
+      blocker.classList.add("hidden"); Sound.duck(false); resolve(ok);
+    };
+    const safety = setTimeout(() => finish(false), 120000);
+    try {
+      CG.sdk.ad.requestAd(type, {
+        adStarted: () => { Sound.duck(true); },
+        adFinished: () => { clearTimeout(safety); finish(true); },
+        adError: err => {
+          clearTimeout(safety);
+          const code = err && err.code;
+          if (code === "adblock") CG.adblock = true;
+          if (code === "adsDisabled") CG.adsDisabled = true;
+          finish(false);
+        }
+      });
+    } catch (e) { clearTimeout(safety); finish(false); }
+  });
+}
+
+/* =========================================================================
+   Save data — CrazyGames Data module on CrazyGames, localStorage elsewhere
+   ========================================================================= */
+const DEFAULT_SAVE = { v: 1, unlocked: 1, stars: [0,0,0,0,0], bestTime: [0,0,0,0,0], coins: 0, skins: [0], skin: 0,
+  endlessBest: 0, sfx: true, music: true, tutorial: false, lastLevel: 0, finished: false, freeAdAt: 0 };
+let SAVE = JSON.parse(JSON.stringify(DEFAULT_SAVE));
+const memStore = {};
+let storeBackend = null;
+function storage(){
+  if (storeBackend) return storeBackend;
+  // On CrazyGames rely on the Data module (it syncs guest + logged-in progress); fall back if it is disabled.
+  if (CG.sdk && CG.sdk.data) { try { CG.sdk.data.getItem(SAVE_KEY); return (storeBackend = CG.sdk.data); } catch (e) {} }
+  try { const k = "__riu_t"; localStorage.setItem(k, "1"); localStorage.removeItem(k); return (storeBackend = localStorage); } catch (e) {}
+  return (storeBackend = { getItem: k => (k in memStore ? memStore[k] : null), setItem: (k, v) => { memStore[k] = String(v); } });
+}
+function loadSave(){
+  try {
+    const raw = storage().getItem(SAVE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      SAVE = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SAVE)), d);
+      if (!Array.isArray(SAVE.stars) || SAVE.stars.length !== 5) SAVE.stars = [0,0,0,0,0];
+      if (!Array.isArray(SAVE.bestTime) || SAVE.bestTime.length !== 5) SAVE.bestTime = [0,0,0,0,0];
+      if (!Array.isArray(SAVE.skins) || !SAVE.skins.includes(0)) SAVE.skins = [0].concat(Array.isArray(SAVE.skins) ? SAVE.skins : []);
+      SAVE.unlocked = clamp(SAVE.unlocked | 0, 1, 5);
+      SAVE.lastLevel = clamp(SAVE.lastLevel | 0, 0, SAVE.unlocked - 1);
+      SAVE.coins = Math.max(0, SAVE.coins | 0);
+    }
+  } catch (e) {}
+}
+function writeSave(){ try { storage().setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch (e) { if (DEBUG) console.warn("save", e); } }
+
+/* =========================================================================
+   Sound — small WebAudio synth, no files to download
+   ========================================================================= */
+const Sound = {
+  ctx: null, master: null, sfx: null, mus: null, ducked: false, musicTimer: 0, musicStep: 0,
+  ensure(){
+    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {}); return; }
+    const AC = window.AudioContext || window["webkitAudioContext"];
+    if (!AC) return;
+    try {
+      this.ctx = new AC();
+      this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
+      this.sfx = this.ctx.createGain(); this.sfx.connect(this.master);
+      this.mus = this.ctx.createGain(); this.mus.connect(this.master);
+      this.apply();
+    } catch (e) { this.ctx = null; }
+  },
+  apply(){
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime, off = CG.muteBySdk || this.ducked;
+    this.master.gain.setTargetAtTime(off ? 0 : 0.9, now, 0.02);
+    this.sfx.gain.setTargetAtTime(SAVE.sfx ? 0.55 : 0, now, 0.02);
+    this.mus.gain.setTargetAtTime(SAVE.music ? 0.16 : 0, now, 0.05);
+  },
+  duck(on){ this.ducked = on; this.apply(); },
+  tone(freq, dur, type, vol, slide, dest){
+    if (!this.ctx || this.ctx.state !== "running") return;
+    const t0 = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq * slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol || 0.3, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(dest || this.sfx); o.start(t0); o.stop(t0 + dur + 0.02);
+  },
+  lastPop: 0,
+  pop(rel){ // rel = item size relative to player (0..1); small things squeak, big things thump
+    if (!this.ctx) return; const n = this.ctx.currentTime; if (n - this.lastPop < 0.035) return; this.lastPop = n;
+    const f = 1100 - clamp(rel, 0, 1) * 800 + Math.random() * 80;
+    this.tone(f, 0.09, "triangle", 0.28, 1.6);
+  },
+  lastBump: 0,
+  bump(){ if (!this.ctx) return; const n = this.ctx.currentTime; if (n - this.lastBump < 0.18) return; this.lastBump = n; this.tone(140, 0.16, "sine", 0.45, 0.5); },
+  drop(){ this.tone(520, 0.18, "square", 0.12, 0.45); },
+  click(){ this.tone(660, 0.06, "triangle", 0.2, 1.2); },
+  coin(){ this.tone(988, 0.08, "square", 0.12); setTimeout(() => this.tone(1319, 0.14, "square", 0.12), 80); },
+  unlock(){ [523, 659, 784].forEach((f, i) => setTimeout(() => this.tone(f, 0.14, "triangle", 0.25), i * 70)); },
+  win(){ [523, 659, 784, 1047, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, 0.2, "triangle", 0.28), i * 110)); },
+  // Gentle pentatonic loop
+  musicTick(dt, active){
+    if (!this.ctx || this.ctx.state !== "running" || !SAVE.music || !active) return;
+    this.musicTimer -= dt; if (this.musicTimer > 0) return;
+    this.musicTimer += 0.24;
+    const scale = [0, 2, 4, 7, 9, 12, 14, 16];
+    const pat = [0, 4, 2, 5, 4, 2, 3, 1, 0, 4, 2, 6, 5, 3, 2, 1];
+    const root = [220, 196, 174.6, 196][Math.floor(this.musicStep / 16) % 4];
+    const f = root * Math.pow(2, scale[pat[this.musicStep % 16]] / 12) * 2;
+    this.tone(f, 0.22, "triangle", 0.5, 0, this.mus);
+    if (this.musicStep % 4 === 0) this.tone(root / 2, 0.45, "sine", 0.7, 0, this.mus);
+    this.musicStep++;
+  }
+};
+
+/* =========================================================================
+   Themes, levels, skins
+   ========================================================================= */
+const R0 = 10, K_GROW = 0.05, K_ENDLESS = 0.025, EAT_RATIO = 0.8;
+const growK = () => G.mode === "endless" ? K_ENDLESS : K_GROW;
+const THEMES = {
+  kitchen: { bg: "#c98a52", out: "#5b3a2b", line: "rgba(80,40,10,.22)", style: "planks", accent: "#fff3c4",
+    tiers: [["🫘","🌰","🫐","🍬","🧷","📎","🪙","🔑","🥜","🍒","🌽"],["🍪","🍓","🥚","🧄","🍋","🍄","🧀","🍙","🥟","🍡"],["🍎","🍊","🥐","🧁","🍩","☕","🧃","🍔","🥑","🍞"],["🥫","🍫","🫖","🍯","🥤","🍝","🥗","🍜","🥞"],["🍉","🎂","🍍","🍾","🥘","🍗","🫕"]] },
+  arcade: { bg: "#3b2470", out: "#140c2b", line: "rgba(255,120,220,.20)", style: "dots", accent: "#7df9ff",
+    tiers: [["🎟️","🪙","🎲","🃏","🍿","🔋","🎫"],["🕹️","🎯","🧸","🎳","🍦","🥤","🎧","🪀"],["🎮","👾","🎱","🏓","🛹","🎸","🥁"],["📺","🎰","🏀","🪅","🎹","🛼"],["🎠","🎡","🎪","🎢","🏎️"]] },
+  hood: { bg: "#69b45a", out: "#2f5e2a", line: "rgba(20,70,20,.18)", style: "grass", accent: "#fffbe0",
+    tiers: [["🐌","🌼","🍂","🐞","🌷","🍄","🐝"],["⚽","🐈","🐿️","🪴","🧺","🐦","🦆"],["🐕","🚲","🛴","📮","🗑️","🐐","🛒"],["🌳","🚗","🛻","🛶","⛺","🐄"],["🏠","⛲","🏡","🚚","🛖"]] },
+  city: { bg: "#7a8090", out: "#383c48", line: "rgba(255,255,255,.18)", style: "lanes", accent: "#ffe66d",
+    tiers: [["🚦","🪧","🛵","🌲","🚲","⛽"],["🚕","🚗","🚓","🚑","🌳"],["🚌","🚒","🚛","🚜","🚤"],["🏪","🏢","🏬","🏨","🚂","🏫"],["🏛️","🏟️","🗼","🏰","🏯","🌉"]] },
+  cosmic: { bg: "#151a3b", out: "#07081a", line: "rgba(255,255,255,.7)", style: "stars", accent: "#c8b6ff",
+    tiers: [["✈️","🎈","🪁","🚁","🕊️"],["☁️","🛸","🚀","🛩️"],["🛰️","☄️","🌧️","🌈"],["🌙","🌑","🌕","🌗"],["🪐","🌍","🌎","☀️"]] }
+};
+const LEVELS = [
+  { key: "l1", theme: "kitchen", icon: "🍳", seed: 101, counts: [46, 32, 20, 12, 6], world: 1500 },
+  { key: "l2", theme: "arcade",  icon: "🕹️", seed: 202, counts: [56, 38, 24, 14, 7], world: 1650 },
+  { key: "l3", theme: "hood",    icon: "🏡", seed: 303, counts: [62, 42, 28, 16, 8], world: 1750 },
+  { key: "l4", theme: "city",    icon: "🏙️", seed: 404, counts: [68, 46, 30, 18, 9], world: 1850 },
+  { key: "l5", theme: "cosmic",  icon: "🪐", seed: 505, counts: [70, 48, 30, 18, 10], world: 1900, exp: 5 }
+];
+// Tier size ladder (radius, relative to the start radius R0 = 10)
+const TIER_BASE = 4.5, TIER_G = 1.8, TIER_W = 1.35;
+function tierRange(i){ const a = TIER_BASE * Math.pow(TIER_G, i); return [a, a * TIER_W]; }
+// Par times (seconds) for 3 / 2 stars, measured with an autopilot and loosened for humans.
+const PAR = [[96, 155], [92, 148], [98, 158], [106, 170], [102, 164]];
+const SKINS = [
+  { price: 0,   draw: "solid", c: ["#ff5a36", "#ffd84d"] },
+  { price: 60,  draw: "solid", c: ["#34d1a0", "#ffffff"] },
+  { price: 100, draw: "solid", c: ["#8e6cf5", "#ffd84d"] },
+  { price: 150, draw: "solid", c: ["#ffd84d", "#ff5a36"] },
+  { price: 220, draw: "stripe", c: ["#ff5a8a", "#ffffff"] },
+  { price: 300, draw: "dots", c: ["#2340d8", "#ffd84d"], face: "#ffffff" },
+  { price: 450, draw: "galaxy", c: ["#2b1a5e", "#ffffff"], face: "#ffffff" },
+  { price: 700, draw: "gold", c: ["#f5b700", "#fff3a8"] }
+];
+const ENDLESS_ORDER = ["kitchen", "arcade", "hood", "city", "cosmic"];
+
+/* Display size chain: each level starts at the size the previous one ended at. */
+const levelDisplay = []; // {startCm, exp}
+function computeDisplayChain(){
+  let d = 2.0; // cm diameter at the start of level 1
+  for (let i = 0; i < LEVELS.length; i++) {
+    const L = LEVELS[i];
+    levelDisplay[i] = { startCm: d, exp: L.exp || 1 };
+    let sum = 0; const objs = genLevelObjects(i);
+    for (const o of objs) sum += o.r;
+    const finalR = R0 + K_GROW * sum;
+    levelDisplay[i].finalR = finalR;
+    d = d * Math.pow(finalR / R0, L.exp || 1);
+  }
+}
+function fmtSize(cm){
+  if (!isFinite(cm)) return "∞";
+  if (cm < 1) return (cm * 10).toFixed(1) + " mm";
+  if (cm < 100) return cm.toFixed(1) + " cm";
+  const m = cm / 100;
+  if (m < 10) return m.toFixed(2) + " m";
+  if (m < 1000) return m.toFixed(1) + " m";
+  const km = m / 1000;
+  if (km < 100) return km.toFixed(2) + " km";
+  return Math.round(km).toLocaleString("en-US") + " km";
+}
+
+/* =========================================================================
+   Emoji sprite cache — emoji text is slow to draw every frame
+   ========================================================================= */
+// Three resolutions so small items stay cheap and big ones stay sharp on 1080p / high-DPI screens.
+const SPR = new Map();
+function sprite(em, drawPx){
+  const need = (drawPx || 64) * DPR, px = need <= 72 ? 72 : need <= 160 ? 160 : 320, key = em + "|" + px;
+  let c = SPR.get(key); if (c) return c;
+  c = document.createElement("canvas"); c.width = c.height = px;
+  const g = c.getContext("2d");
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = Math.floor(px * 0.78) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  g.fillText(em, px / 2, px / 2 + px * 0.04);
+  SPR.set(key, c); return c;
+}
+
+/* =========================================================================
+   Canvas
+   ========================================================================= */
+const cvs = $("cvs"), ctx = cvs.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  W = Math.max(1, window.innerWidth); H = Math.max(1, window.innerHeight);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  if (W * H * DPR * DPR > 4.2e6) DPR = Math.max(1, Math.sqrt(4.2e6 / (W * H)));
+  cvs.width = Math.floor(W * DPR); cvs.height = Math.floor(H * DPR);
+}
+window.addEventListener("resize", resize); resize();
+
+/* =========================================================================
+   Game state
+   ========================================================================= */
+const G = {
+  mode: "level", lvl: 0, state: "loading", theme: THEMES.kitchen, world: 1500,
+  objects: [], flying: [], particles: [], player: null,
+  eaten: 0, total: 0, time: 0, cam: { x: 0, y: 0, s: 1 }, shake: 0,
+  unlockCheck: 0, lastUnlockMsg: -99, completeTimer: -1, startCm: 2, exp: 1,
+  hintTimer: 0, moved: 0, noTargetTimer: 0, endlessSpawnT: 0, endlessBestHit: false, coinsEarned: 0, doubled: false, rewardedThisScreen: false
+};
+
+function newPlayer(x, y, r){ return { x, y, vx: 0, vy: 0, r, rd: r, ang: 0, attached: [], dropCd: 0, lean: 0, chomp: 0, ouch: 0, happy: 0, squish: 0 }; }
+
+const genCache = new Map();
+function genLevelObjects(idx){
+  // Deterministic per level; cached template is cloned so replays start fresh.
+  if (!genCache.has(idx)) genCache.set(idx, genLevelObjectsRaw(idx));
+  return genCache.get(idx).map(o => Object.assign({}, o));
+}
+function genLevelObjectsRaw(idx){
+  const L = LEVELS[idx], th = THEMES[L.theme], rng = mulberry32(L.seed);
+  const W0 = L.world, cx = W0 / 2, cy = W0 / 2, objs = [];
+  const T = L.counts.length;
+  for (let ti = 0; ti < T; ti++) {
+    const [a, b] = tierRange(ti), emo = th.tiers[ti], band = (W0 / 2 - 40) * (0.32 + 0.68 * ti / (T - 1));
+    for (let k = 0; k < L.counts[ti]; k++) {
+      const r = a + (b - a) * rng();
+      let x = cx, y = cy, ok = false;
+      for (let tries = 0; tries < 60 && !ok; tries++) {
+        const ang = rng() * Math.PI * 2, rad = Math.sqrt(rng()) * band;
+        x = clamp(cx + Math.cos(ang) * rad, r + 6, W0 - r - 6); y = clamp(cy + Math.sin(ang) * rad, r + 6, W0 - r - 6);
+        // keep a clear start spot and avoid overlaps
+        if (Math.hypot(x - cx, y - cy) < R0 * 4 + r) continue;
+        ok = true;
+        for (const o of objs) { const dx = o.x - x, dy = o.y - y, m = (o.r + r) * 0.9 + 2; if (dx * dx + dy * dy < m * m) { ok = false; break; } }
+      }
+      if (!ok && Math.hypot(x - cx, y - cy) < R0 * 4 + r) continue; // skip rather than spawn on the player
+      objs.push({ x, y, r, em: emo[Math.floor(rng() * emo.length)], rot: (rng() - 0.5) * 0.5, eaten: false, pop: 0, tier: ti });
+    }
+  }
+  objs.sort((p, q) => p.r - q.r); // draw small things first
+  return objs;
+}
+
+function startLevel(idx){
+  G.mode = "level"; G.lvl = idx;
+  const L = LEVELS[idx];
+  G.theme = THEMES[L.theme]; G.world = L.world;
+  G.objects = genLevelObjects(idx);
+  G.total = G.objects.length; G.eaten = 0; G.time = 0;
+  G.flying = []; G.particles = []; G.completeTimer = -1;
+  G.player = newPlayer(L.world / 2, L.world / 2, R0);
+  G.cam.x = G.player.x; G.cam.y = G.player.y; G.cam.s = camScale(R0);
+  G.startCm = levelDisplay[idx].startCm; G.exp = levelDisplay[idx].exp;
+  G.noTargetTimer = 0; G.lastUnlockMsg = -99; G.unlockCheck = currentEatLimitIndex();
+  SAVE.lastLevel = idx; writeSave();
+  setHUDLevel();
+  sdkCall(s => s.game.setGameContext({ level: idx + 1 }));
+  resumePlay();
+  if (idx === 4) showToast(t("cosmic"), 2600);
+}
+
+function startEndless(){
+  G.mode = "endless"; G.lvl = -1;
+  G.theme = THEMES.kitchen; G.world = Infinity;
+  G.objects = []; G.flying = []; G.particles = []; G.time = 0; G.eaten = 0; G.total = 0; G.completeTimer = -1;
+  G.player = newPlayer(0, 0, R0);
+  G.cam.x = 0; G.cam.y = 0; G.cam.s = camScale(R0);
+  G.startCm = 2; G.exp = 1; G.endlessBestHit = false; G.endlessSpawnT = 0; G.lastUnlockMsg = -99;
+  for (let i = 0; i < 140; i++) spawnEndlessObject(true);
+  setHUDLevel();
+  sdkCall(s => s.game.setGameContext({ level: "endless" }));
+  resumePlay();
+}
+
+function endlessStage(r){ return Math.max(0, Math.floor(Math.log(r / R0) / Math.log(3))); }
+function spawnEndlessObject(initial){
+  const p = G.player, view = viewRadius();
+  const minD = initial ? p.r * 3 : view * 1.05, maxD = initial ? view * 1.7 : view * 1.9;
+  const ang = Math.random() * Math.PI * 2, d = minD + Math.random() * (maxD - minD);
+  const x = p.x + Math.cos(ang) * d, y = p.y + Math.sin(ang) * d;
+  // log-uniform size, skewed towards things you can already eat
+  const u = Math.random();
+  const rel = u < 0.68 ? lerp(0.22, 0.75, Math.random()) : u < 0.9 ? lerp(0.8, 1.7, Math.random()) : lerp(1.7, 3.2, Math.random());
+  const r = p.r * rel;
+  const st = endlessStage(p.r), th = THEMES[ENDLESS_ORDER[st % ENDLESS_ORDER.length]];
+  const ti = rel < 0.4 ? 0 : rel < 0.75 ? 1 : rel < 1.2 ? 2 : rel < 2 ? 3 : 4;
+  for (const o of G.objects) { const dx = o.x - x, dy = o.y - y, m = (o.r + r) * 0.9; if (!o.eaten && dx * dx + dy * dy < m * m) return; }
+  const emo = th.tiers[ti];
+  G.objects.push({ x, y, r, em: emo[Math.floor(Math.random() * emo.length)], rot: (Math.random() - 0.5) * 0.5, eaten: false, pop: 0.0001, tier: ti });
+}
+function updateEndless(dt){
+  const p = G.player, view = viewRadius();
+  const st = endlessStage(p.r);
+  const th = THEMES[ENDLESS_ORDER[st % ENDLESS_ORDER.length]];
+  if (th !== G.theme) { G.theme = th; showToast(t(["l1","l2","l3","l4","l5"][st % 5]), 1800); }
+  G.endlessSpawnT -= dt;
+  if (G.endlessSpawnT <= 0) {
+    G.endlessSpawnT = 0.25;
+    const far = view * 2.6;
+    G.objects = G.objects.filter(o => !o.eaten && Math.hypot(o.x - p.x, o.y - p.y) < far && o.r > p.r * 0.06);
+    G.objects.sort((a, b) => a.r - b.r);
+    let tries = 0; while (G.objects.length < 170 && tries++ < 40) spawnEndlessObject(false);
+  }
+  if (p.r > SAVE.endlessBest && SAVE.endlessBest > 0 && !G.endlessBestHit) { G.endlessBestHit = true; showToast(t("newBest"), 1800); }
+}
+
+/* =========================================================================
+   Camera
+   ========================================================================= */
+let ZOOM_MUL = 1, CAM_DY = 0; // debug only (cover art)
+function camScale(r){ return (Math.min(W, H) * 0.085 * ZOOM_MUL) / r; }
+// based on the target zoom (not the smoothed camera) so spawning never lags behind growth
+function viewRadius(){ return Math.hypot(W, H) / 2 / camScale(G.player ? G.player.r : R0); }
+
+/* =========================================================================
+   Input — pointer drag (touch + mouse) and keyboard (physical WASD positions)
+   ========================================================================= */
+const input = { keys: new Set(), px: 0, py: 0, active: false, ox: 0, oy: 0, x: 0, y: 0, id: null };
+cvs.addEventListener("pointerdown", e => {
+  if (G.state !== "play") return;
+  Sound.ensure();
+  input.active = true; input.id = e.pointerId; input.ox = input.x = e.clientX; input.oy = input.y = e.clientY;
+  try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+  e.preventDefault();
+});
+cvs.addEventListener("pointermove", e => { if (input.active && e.pointerId === input.id) { input.x = e.clientX; input.y = e.clientY; } });
+const endPtr = e => { if (e.pointerId === input.id) { input.active = false; input.id = null; } };
+cvs.addEventListener("pointerup", endPtr); cvs.addEventListener("pointercancel", endPtr);
+cvs.addEventListener("contextmenu", e => e.preventDefault());
+const KEYMAP = { KeyW: "u", ArrowUp: "u", KeyS: "d", ArrowDown: "d", KeyA: "l", ArrowLeft: "l", KeyD: "r", ArrowRight: "r" };
+window.addEventListener("keydown", e => {
+  const k = KEYMAP[e.code];
+  if (k) { input.keys.add(k); if (G.state === "play") e.preventDefault(); Sound.ensure(); }
+  if (e.code === "KeyP" && !e.repeat) { if (G.state === "play") pauseGame(); else if (G.state === "paused" && !$("pauseOv").classList.contains("hidden")) resumePlay(); }
+});
+window.addEventListener("keyup", e => { const k = KEYMAP[e.code]; if (k) input.keys.delete(k); });
+window.addEventListener("blur", () => { input.keys.clear(); input.active = false; });
+// iOS needs a gesture to resume audio after interruptions
+["touchend", "click", "keydown"].forEach(ev => document.addEventListener(ev, () => { if (Sound.ctx && Sound.ctx.state !== "running") Sound.ctx.resume().catch(() => {}); }, { passive: true }));
+
+function readInput(){
+  let ix = 0, iy = 0;
+  if (input.keys.has("l")) ix -= 1; if (input.keys.has("r")) ix += 1;
+  if (input.keys.has("u")) iy -= 1; if (input.keys.has("d")) iy += 1;
+  if (ix || iy) { const m = Math.hypot(ix, iy); return [ix / m, iy / m]; }
+  if (input.active) {
+    const dx = input.x - input.ox, dy = input.y - input.oy, d = Math.hypot(dx, dy), full = Math.max(40, Math.min(W, H) * 0.09);
+    if (d > 6) { const m = Math.min(1, d / full); return [dx / d * m, dy / d * m]; }
+  }
+  return [0, 0];
+}
+
+/* =========================================================================
+   Simulation (fixed step so physics is identical at 60/120/144 Hz)
+   ========================================================================= */
+const STEP = 1 / 120;
+let botInput = null; // debug autopilot
+
+function currentEatLimitIndex(){ // number of distinct tiers currently edible (for the unlock toast)
+  const p = G.player; let n = 0;
+  for (let i = 0; i < 5; i++) if (tierRange(i)[0] <= p.r * EAT_RATIO) n = i + 1;
+  return n;
+}
+
+function step(dt){
+  const p = G.player;
+  G.time += dt;
+  const [ix, iy] = botInput ? botInput() : readInput();
+  if (ix || iy) G.moved += dt;
+  const maxSp = p.r * 5.2, acc = p.r * 16;
+  p.vx += ix * acc * dt; p.vy += iy * acc * dt;
+  const fr = Math.exp(-(ix || iy ? 1.2 : 2.6) * dt);
+  p.vx *= fr; p.vy *= fr;
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > maxSp) { p.vx *= maxSp / sp; p.vy *= maxSp / sp; }
+  p.x += p.vx * dt; p.y += p.vy * dt;
+  p.ang += (Math.hypot(p.vx, p.vy) * dt / p.r) * (p.vx >= 0 ? 1 : -1) * 0.8;
+  p.dropCd -= dt;
+  if (p.chomp > 0) p.chomp -= dt; if (p.ouch > 0) p.ouch -= dt; if (p.happy > 0) p.happy -= dt;
+  if (p.squish > 0) p.squish = Math.max(0, p.squish - dt * 2.2);
+
+  if (G.mode === "level") { // keep inside the world; margin is capped so a huge ball can still reach the corners
+    const m = Math.min(p.r * 0.9, G.world * 0.05);
+    if (p.x < m) { p.x = m; p.vx = Math.max(0, p.vx); } if (p.x > G.world - m) { p.x = G.world - m; p.vx = Math.min(0, p.vx); }
+    if (p.y < m) { p.y = m; p.vy = Math.max(0, p.vy); } if (p.y > G.world - m) { p.y = G.world - m; p.vy = Math.min(0, p.vy); }
+  }
+
+  const eatLim = p.r * EAT_RATIO;
+  for (let i = 0; i < G.objects.length; i++) {
+    const o = G.objects[i]; if (o.eaten) continue;
+    const dx = o.x - p.x, dy = o.y - p.y, reach = p.r + o.r;
+    if (dx > reach || dx < -reach || dy > reach || dy < -reach) continue;
+    const d2 = dx * dx + dy * dy; if (d2 > reach * reach) continue;
+    const d = Math.sqrt(d2) || 0.001;
+    if (o.r <= eatLim) {
+      if (d < p.r * 0.98 + o.r * 0.4) eat(o);
+    } else {
+      const solid = (p.r + o.r) * 0.86, ov = solid - d;
+      if (ov > 0) {
+        const nx = dx / d, ny = dy / d;
+        p.x -= nx * ov; p.y -= ny * ov;
+        const vn = p.vx * nx + p.vy * ny;
+        if (vn > 0) {
+          p.vx -= 1.35 * vn * nx; p.vy -= 1.35 * vn * ny;
+          const impact = vn / maxSp;
+          if (impact > 0.25) { Sound.bump(); G.shake = Math.min(1, G.shake + impact * 0.6); o.pop = 0.25; if (impact > 0.45) p.ouch = 0.45; }
+          if (impact > 0.62 && p.dropCd <= 0 && p.attached.length > 3) dropOne(nx, ny);
+        }
+      }
+    }
+  }
+  for (const f of G.flying) f.t += dt / 0.16;
+  for (let i = G.flying.length - 1; i >= 0; i--) {
+    if (G.flying[i].t >= 1) { const f = G.flying[i]; G.flying.splice(i, 1); attach(f.o); }
+  }
+  for (const o of G.objects) if (o.pop > 0) o.pop = Math.max(0, o.pop - dt);
+  for (let i = G.particles.length - 1; i >= 0; i--) {
+    const q = G.particles[i]; q.life -= dt;
+    if (q.life <= 0) { G.particles.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.92; q.vy *= 0.92;
+  }
+  G.shake = Math.max(0, G.shake - dt * 2.5);
+
+  // tier unlock feedback
+  const tierIdx = currentEatLimitIndex();
+  if (G.mode === "level" && tierIdx > G.unlockCheck) {
+    G.unlockCheck = tierIdx;
+    if (tierIdx > 1 && SAVE.tutorial && G.time - G.lastUnlockMsg > 2.5) {
+      const hasBig = G.objects.some(o => !o.eaten && o.tier === tierIdx - 1);
+      if (hasBig) { G.lastUnlockMsg = G.time; showToast(t("unlocked") + " " + G.theme.tiers[tierIdx - 1][0], 2200); Sound.unlock(); p.happy = 1.2; }
+    }
+  }
+
+  if (G.mode === "endless") updateEndless(dt);
+  else if (G.eaten >= G.total && G.flying.length === 0 && G.completeTimer < 0) G.completeTimer = 0.7;
+  if (G.completeTimer > 0) { G.completeTimer -= dt; if (G.completeTimer <= 0) levelComplete(); }
+}
+
+function eat(o){
+  const p = G.player;
+  o.eaten = true; G.eaten++;
+  const rel = o.r / p.r;
+  p.r += growK() * o.r;
+  G.flying.push({ o, sx: o.x, sy: o.y, t: 0 });
+  p.chomp = 0.16; p.squish = Math.min(1, p.squish + 0.3 + rel * 0.6);
+  Sound.pop(rel);
+  const n = 3 + Math.floor(rel * 6);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = (0.6 + Math.random()) * p.r * 2.2;
+    G.particles.push({ x: o.x, y: o.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35 + Math.random() * 0.25, max: 0.6, r: p.r * (0.06 + Math.random() * 0.06), c: Math.random() < 0.5 ? G.theme.accent : "#ffffff" });
+  }
+}
+// Puts a dropped item on open ground: never inside another object (it could become unreachable) or the player.
+function placeFree(o, x0, y0){
+  const p = G.player;
+  for (let k = 0; k < 80; k++) {
+    const ang = k * 2.39996, rad = k === 0 ? 0 : o.r * 1.2 + k * o.r * 0.9;
+    let x = x0 + Math.cos(ang) * rad, y = y0 + Math.sin(ang) * rad;
+    if (G.mode === "level") { x = clamp(x, o.r + 2, G.world - o.r - 2); y = clamp(y, o.r + 2, G.world - o.r - 2); }
+    if (Math.hypot(x - p.x, y - p.y) < p.r + o.r + 2) continue;
+    let ok = true;
+    for (const q of G.objects) { if (q === o || q.eaten) continue; const m = q.r + o.r + 1; if (Math.abs(q.x - x) < m && Math.abs(q.y - y) < m && Math.hypot(q.x - x, q.y - y) < m) { ok = false; break; } }
+    if (ok) { o.x = x; o.y = y; return; }
+  }
+  o.x = x0; o.y = y0;
+}
+function attach(o){
+  const p = G.player;
+  p.attached.push({ o, a: Math.random() * Math.PI * 2, f: 0.74 + Math.random() * 0.3, rot: Math.random() * Math.PI * 2 });
+  if (G.mode === "endless" && p.attached.length > 300) p.attached.splice(0, p.attached.length - 300); // long runs: keep memory flat
+}
+function dropOne(nx, ny){
+  const p = G.player;
+  const a = p.attached.pop(); if (!a) return;
+  const o = a.o;
+  p.r = Math.max(R0, p.r - growK() * o.r);
+  o.eaten = false; G.eaten--;
+  const back = p.r + o.r + 4;
+  placeFree(o, p.x - nx * back + (Math.random() - 0.5) * p.r, p.y - ny * back + (Math.random() - 0.5) * p.r);
+  o.pop = 0.4; p.dropCd = 1.2; p.ouch = 0.7;
+  G.completeTimer = -1;
+  Sound.drop();
+}
+
+/* =========================================================================
+   Rendering
+   ========================================================================= */
+function hash2(x, y){ let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+
+function drawGround(){
+  const th = G.theme, s = G.cam.s, cx = G.cam.x, cy = G.cam.y;
+  const left = cx - W / 2 / s, top = cy - H / 2 / s, right = cx + W / 2 / s, bottom = cy + H / 2 / s;
+  ctx.fillStyle = G.mode === "level" ? th.out : th.bg; ctx.fillRect(-20, -20, W + 40, H + 40);
+  const toX = x => (x - cx) * s + W / 2, toY = y => (y - cy) * s + H / 2;
+  let x0 = left, y0 = top, x1 = right, y1 = bottom;
+  if (G.mode === "level") {
+    x0 = Math.max(0, left); y0 = Math.max(0, top); x1 = Math.min(G.world, right); y1 = Math.min(G.world, bottom);
+    if (x1 <= x0 || y1 <= y0) return;
+    ctx.fillStyle = th.bg; ctx.fillRect(toX(x0), toY(y0), (x1 - x0) * s, (y1 - y0) * s);
+  }
+  // adaptive spacing: a pattern cell is roughly 70–140 px on screen at any zoom
+  let sp = Math.pow(2, Math.ceil(Math.log2(70 / s)));
+  const alpha = clamp((sp * s - 70) / 70, 0, 1); // fade the finer level in/out
+  const drawLevel = (spc, a) => {
+    if (a <= 0.02) return;
+    const gx0 = Math.floor(x0 / spc), gx1 = Math.ceil(x1 / spc), gy0 = Math.floor(y0 / spc), gy1 = Math.ceil(y1 / spc);
+    if ((gx1 - gx0) * (gy1 - gy0) > 2500) return;
+    ctx.globalAlpha = a;
+    if (th.style === "planks") {
+      ctx.strokeStyle = th.line; ctx.lineWidth = 2;
+      for (let gy = gy0; gy <= gy1; gy++) { const y = toY(gy * spc); ctx.beginPath(); ctx.moveTo(toX(x0), y); ctx.lineTo(toX(x1), y); ctx.stroke();
+        for (let gx = gx0; gx <= gx1; gx++) if (hash2(gx, gy) < 0.35) { const x = toX((gx + hash2(gy, gx)) * spc); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, toY((gy + 1) * spc)); ctx.stroke(); } }
+    } else if (th.style === "dots") {
+      ctx.fillStyle = th.line;
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) { ctx.beginPath(); ctx.arc(toX(gx * spc), toY(gy * spc), Math.max(2, spc * s * 0.06), 0, 6.283); ctx.fill(); }
+    } else if (th.style === "grass") {
+      ctx.fillStyle = th.line;
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) { const h = hash2(gx, gy); if (h < 0.5) { const x = toX((gx + h) * spc), y = toY((gy + hash2(gy, gx)) * spc); ctx.beginPath(); ctx.ellipse(x, y, spc * s * 0.32, spc * s * 0.18, 0, 0, 6.283); ctx.fill(); } }
+    } else if (th.style === "lanes") {
+      ctx.strokeStyle = th.line; ctx.lineWidth = 3; ctx.setLineDash([spc * s * 0.18, spc * s * 0.14]);
+      for (let gx = gx0; gx <= gx1; gx++) { const x = toX(gx * spc); ctx.beginPath(); ctx.moveTo(x, toY(y0)); ctx.lineTo(x, toY(y1)); ctx.stroke(); }
+      for (let gy = gy0; gy <= gy1; gy++) { const y = toY(gy * spc); ctx.beginPath(); ctx.moveTo(toX(x0), y); ctx.lineTo(toX(x1), y); ctx.stroke(); }
+      ctx.setLineDash([]);
+    } else if (th.style === "stars") {
+      ctx.fillStyle = th.line;
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) { const h = hash2(gx, gy); if (h < 0.7) { const x = toX((gx + hash2(gx + 7, gy)) * spc), y = toY((gy + hash2(gx, gy + 7)) * spc); const rr = 0.8 + h * 2.2; ctx.fillRect(x - rr / 2, y - rr / 2, rr, rr); } }
+    }
+    ctx.globalAlpha = 1;
+  };
+  drawLevel(sp, 1 - alpha * 0.0); // main level
+  drawLevel(sp / 2, alpha);        // finer level fades in as you zoom
+  if (G.mode === "level") { // table / arena edge
+    ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = Math.max(4, 8);
+    ctx.strokeRect(toX(0), toY(0), G.world * s, G.world * s);
+  }
+}
+
+function roundRectPath(g, x, y, w, h, r){
+  g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r);
+  g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+}
+function drawSkinBody(g, size, skinIdx, time){
+  const sk = SKINS[skinIdx] || SKINS[0], half = size / 2, rr = size * 0.38;
+  roundRectPath(g, -half, -half, size, size, rr);
+  g.fillStyle = sk.c[0]; g.fill();
+  g.save(); g.clip();
+  if (sk.draw === "stripe") { g.fillStyle = sk.c[1]; for (let i = -3; i <= 3; i++) { g.save(); g.rotate(0.6); g.fillRect(i * size * 0.28, -size, size * 0.12, size * 2); g.restore(); } }
+  else if (sk.draw === "dots") { g.fillStyle = sk.c[1]; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { g.beginPath(); g.arc(i * size * 0.32 + (j % 2) * size * 0.16, j * size * 0.32, size * 0.07, 0, 6.283); g.fill(); } }
+  else if (sk.draw === "galaxy") { g.fillStyle = sk.c[1]; for (let i = 0; i < 14; i++) { const h = hash2(i, 3), k = hash2(3, i); g.globalAlpha = 0.5 + 0.5 * Math.sin(time * 3 + i); g.fillRect((h - 0.5) * size, (k - 0.5) * size, size * 0.04, size * 0.04); } g.globalAlpha = 1; }
+  else if (sk.draw === "gold") { g.fillStyle = sk.c[1]; g.globalAlpha = 0.6; g.beginPath(); g.moveTo(-half, -half * 0.2); g.lineTo(-half * 0.2, -half); g.lineTo(half * 0.15, -half); g.lineTo(-half, half * 0.15); g.fill(); g.globalAlpha = 1; }
+  else { g.fillStyle = sk.c[1]; g.globalAlpha = 0.9; g.beginPath(); g.ellipse(-half * 0.5, -half * 0.62, size * 0.1, size * 0.055, -0.5, 0, 6.283); g.fill(); g.globalAlpha = 1; }
+  g.restore();
+  g.lineWidth = Math.max(1.5, size * 0.06); g.strokeStyle = "#1b1a2e";
+  roundRectPath(g, -half, -half, size, size, rr); g.stroke();
+}
+
+// The ball's face. Eyes follow the direction of travel; it blinks, chomps, winces and smiles.
+function drawFace(g, u, skinIdx, f){
+  const sk = SKINS[skinIdx] || SKINS[0], ink = sk.face || "#1b1a2e", shine = sk.face ? sk.c[0] : "#ffffff";
+  const ex = u * 0.17, ey = -u * 0.03;
+  g.save(); g.translate((f.lx || 0) * u * 0.04, (f.ly || 0) * u * 0.035);
+  if (sk.draw === "stripe" || sk.draw === "dots") { // clear a soft patch so the pattern never hides the face
+    g.fillStyle = sk.c[0]; g.beginPath(); g.ellipse(0, u * 0.03, u * 0.36, u * 0.17, 0, 0, 6.283); g.fill(); }
+  g.fillStyle = "rgba(255,110,150,.55)";
+  g.beginPath(); g.ellipse(-u * 0.28, u * 0.1, u * 0.075, u * 0.045, 0, 0, 6.283); g.fill();
+  g.beginPath(); g.ellipse(u * 0.28, u * 0.1, u * 0.075, u * 0.045, 0, 0, 6.283); g.fill();
+  g.strokeStyle = ink; g.fillStyle = ink; g.lineCap = "round"; g.lineJoin = "round"; g.lineWidth = Math.max(1.3, u * 0.036);
+  for (const sgn of [-1, 1]) {
+    const x = sgn * ex;
+    if (f.ouch) { g.beginPath(); g.moveTo(x + sgn * u * 0.05, ey - u * 0.045); g.lineTo(x - sgn * u * 0.03, ey); g.lineTo(x + sgn * u * 0.05, ey + u * 0.045); g.stroke(); }
+    else if (f.happy) { g.beginPath(); g.arc(x, ey + u * 0.03, u * 0.05, Math.PI * 1.15, Math.PI * 1.85); g.stroke(); }
+    else if (f.blink) { g.beginPath(); g.moveTo(x - u * 0.045, ey); g.lineTo(x + u * 0.045, ey); g.stroke(); }
+    else {
+      g.beginPath(); g.ellipse(x, ey, u * 0.048, u * 0.064, 0, 0, 6.283); g.fill();
+      g.fillStyle = shine; g.beginPath(); g.arc(x - u * 0.016, ey - u * 0.026, u * 0.018, 0, 6.283); g.fill(); g.fillStyle = ink;
+    }
+  }
+  const my = u * 0.1;
+  if (f.chomp) {
+    g.beginPath(); g.ellipse(0, my + u * 0.01, u * 0.05, u * 0.045, 0, 0, 6.283); g.fill();
+    g.fillStyle = "#ff8fa8"; g.beginPath(); g.ellipse(0, my + u * 0.035, u * 0.03, u * 0.016, 0, 0, 6.283); g.fill();
+  } else if (f.ouch) {
+    g.beginPath(); g.moveTo(-u * 0.06, my + u * 0.02);
+    for (let i = 1; i <= 4; i++) g.lineTo(-u * 0.06 + i * u * 0.03, my + u * 0.02 + (i % 2 ? -1 : 1) * u * 0.018);
+    g.stroke();
+  } else {
+    // a small "w" mouth
+    g.beginPath(); g.moveTo(-u * 0.055, my - u * 0.005);
+    g.quadraticCurveTo(-u * 0.03, my + u * 0.04, 0, my); g.quadraticCurveTo(u * 0.03, my + u * 0.04, u * 0.055, my - u * 0.005);
+    g.stroke();
+  }
+  g.restore();
+}
+function faceFor(p, now){
+  const m = p.r * 5.2;
+  return { lx: clamp(p.vx / m, -1, 1), ly: clamp(p.vy / m, -1, 1), blink: (now / 1000) % 3.3 < 0.12,
+    chomp: p.chomp > 0, ouch: p.ouch > 0, happy: p.happy > 0 || G.state === "complete" || G.state === "results" };
+}
+
+function render(now, dt){
+  const p = G.player;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (!p) { ctx.fillStyle = "#ff5a36"; ctx.fillRect(0, 0, W, H); return; }
+  // camera (smoothing is time-based so it feels the same at any refresh rate)
+  const k1 = 1 - Math.exp(-8 * (dt || 0.016)), k2 = 1 - Math.exp(-5 * (dt || 0.016)), k3 = 1 - Math.exp(-12 * (dt || 0.016));
+  p.rd = lerp(p.rd, p.r, k1);
+  const targetS = camScale(p.rd);
+  G.cam.s = lerp(G.cam.s, targetS, k2);
+  G.cam.x = lerp(G.cam.x, p.x, k3); G.cam.y = lerp(G.cam.y, p.y, k3);
+  const s = G.cam.s;
+  let shx = 0, shy = 0;
+  if (G.shake > 0) { shx = (Math.random() - 0.5) * G.shake * 10; shy = (Math.random() - 0.5) * G.shake * 10; }
+  // clear the whole canvas first so screen shake never leaves stale strips at the edges
+  ctx.fillStyle = G.mode === "level" ? G.theme.out : G.theme.bg; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(shx, shy + CAM_DY * H);
+  drawGround();
+  const cx = G.cam.x, cy = G.cam.y;
+  const toX = x => (x - cx) * s + W / 2, toY = y => (y - cy) * s + H / 2;
+  const vw = W / 2 / s, vh = H / 2 / s;
+  const eatLim = p.r * EAT_RATIO, pulse = 0.5 + 0.5 * Math.sin(now / 220);
+
+  // objects
+  let visibleEatable = 0;
+  for (const o of G.objects) {
+    if (o.eaten) continue;
+    if (Math.abs(o.x - cx) > vw + o.r * 1.4 || Math.abs(o.y - cy) > vh + o.r * 1.4) continue;
+    const sx = toX(o.x), sy = toY(o.y), rr = o.r * s;
+    if (rr < 0.6) continue;
+    const edible = o.r <= eatLim;
+    if (edible) visibleEatable++;
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(sx + rr * 0.12, sy + rr * 0.72, rr * 0.8, rr * 0.28, 0, 0, 6.283); ctx.fill();
+    if (edible && rr > 3) { ctx.strokeStyle = "rgba(255,255,255," + (0.25 + 0.3 * pulse) + ")"; ctx.lineWidth = Math.max(1.5, rr * 0.08); ctx.beginPath(); ctx.arc(sx, sy, rr * 1.08, 0, 6.283); ctx.stroke(); }
+    const sc = 1 + (o.pop > 0 ? Math.sin(o.pop * 25) * 0.08 : 0);
+    const sz = rr * 2.5 * sc;
+    if (o.rot) { ctx.save(); ctx.translate(sx, sy); ctx.rotate(o.rot); ctx.drawImage(sprite(o.em, sz), -sz / 2, -sz / 2, sz, sz); ctx.restore(); }
+    else ctx.drawImage(sprite(o.em, sz), sx - sz / 2, sy - sz / 2, sz, sz);
+  }
+  G.visibleEatable = visibleEatable;
+
+  // things being rolled up
+  for (const f of G.flying) {
+    const k = clamp(f.t, 0, 1), e = k * k;
+    const x = lerp(f.sx, p.x, e), y = lerp(f.sy, p.y, e), rr = f.o.r * s * (1 - 0.4 * k), sz = rr * 2.5;
+    ctx.drawImage(sprite(f.o.em, sz), toX(x) - sz / 2, toY(y) - sz / 2, sz, sz);
+  }
+
+  // player: a squishy block with a face. It leans and hops as it rolls; stuck items orbit its rim.
+  const px = toX(p.x), py = toY(p.y), pr = p.rd * s, size = pr * 1.8;
+  const spd = clamp(Math.hypot(p.vx, p.vy) / (p.r * 5.2), 0, 1);
+  p.lean = lerp(p.lean || 0, clamp(p.vx / (p.r * 5.2), -1, 1) * 0.22, 1 - Math.exp(-10 * (dt || 0.016)));
+  const hop = Math.abs(Math.sin(p.ang * 1.6)) * size * 0.06 * spd;
+  const sq = p.squish > 0 ? Math.sin(p.squish * 14) * p.squish * 0.12 : 0;
+  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(px + pr * 0.1, py + pr * 0.88, pr * (0.95 - hop / size), pr * 0.3, 0, 0, 6.283); ctx.fill();
+  ctx.save(); ctx.translate(px, py - hop); ctx.rotate(p.lean); ctx.scale(1 + sq, 1 - sq);
+  // items on the far side of the ball are drawn behind it, the rest in front (most recent on top, tiny ones skipped)
+  const start = Math.max(0, p.attached.length - 70), front = [];
+  for (let i = start; i < p.attached.length; i++) {
+    const a = p.attached[i], ar = a.o.r * s; if (ar < 1.2) continue;
+    const ang = a.a + p.ang;
+    if (Math.sin(ang) < -0.25) drawStuck(a, ang, ar, size); else front.push(i);
+  }
+  drawSkinBody(ctx, size, SAVE.skin, now / 1000);
+  for (const i of front) { const a = p.attached[i]; drawStuck(a, a.a + p.ang, a.o.r * s, size); }
+  drawFace(ctx, size, SAVE.skin, faceFor(p, now));
+  ctx.restore();
+
+  // particles
+  for (const q of G.particles) {
+    ctx.globalAlpha = clamp(q.life / q.max, 0, 1); ctx.fillStyle = q.c;
+    const rr = Math.max(1.5, q.r * s); ctx.fillRect(toX(q.x) - rr, toY(q.y) - rr, rr * 2, rr * 2);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // locator arrows for the last few, or when nothing edible is on screen for a while
+  if (G.state === "play" && G.mode === "level") {
+    const remaining = G.total - G.eaten;
+    let targets = [];
+    if (remaining > 0 && remaining <= 6) targets = G.objects.filter(o => !o.eaten);
+    else if (G.noTargetTimer > 4) { let best = null, bd = Infinity; for (const o of G.objects) if (!o.eaten && o.r <= eatLim) { const d = Math.hypot(o.x - p.x, o.y - p.y); if (d < bd) { bd = d; best = o; } } if (best) targets = [best]; }
+    for (const o of targets) drawArrow(toX(o.x), toY(o.y), o.em);
+  }
+
+  // joystick
+  if (input.active && G.state === "play") {
+    const dx = input.x - input.ox, dy = input.y - input.oy, d = Math.hypot(dx, dy), full = Math.max(40, Math.min(W, H) * 0.09), k = d > full ? full / d : 1;
+    ctx.globalAlpha = 0.45; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(input.ox, input.oy, full, 0, 6.283); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(input.ox + dx * k, input.oy + dy * k, full * 0.38, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+function drawStuck(a, ang, ar, size){
+  const d = a.f * size * 0.5, sz = ar * 2.3;
+  ctx.save(); ctx.translate(Math.cos(ang) * d, Math.sin(ang) * d); ctx.rotate(a.rot + ang);
+  ctx.drawImage(sprite(a.o.em, sz), -sz / 2, -sz / 2, sz, sz); ctx.restore();
+}
+function drawArrow(tx, ty, em){
+  const m = 46, inside = tx > m && tx < W - m && ty > m + 60 && ty < H - m;
+  if (inside) return;
+  const cx = W / 2, cy = H / 2, ang = Math.atan2(ty - cy, tx - cx);
+  const ex = clamp(tx, m, W - m), ey = clamp(ty, m + 70, H - m);
+  ctx.save(); ctx.translate(ex, ey);
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#1b1a2e"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 22, 0, 6.283); ctx.fill(); ctx.stroke();
+  ctx.drawImage(sprite(em, 30), -15, -15, 30, 30);
+  ctx.rotate(ang); ctx.fillStyle = "#ff5a36";
+  ctx.beginPath(); ctx.moveTo(34, 0); ctx.lineTo(22, -10); ctx.lineTo(22, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+/* =========================================================================
+   HUD & overlays
+   ========================================================================= */
+const hud = $("hud");
+function displayCm(r){ return G.startCm * Math.pow(r / R0, G.exp); }
+function setHUDLevel(){
+  $("lvlName").textContent = G.mode === "endless" ? "🌌 " + t("endless") : t("level", { n: G.lvl + 1 }) + " · " + t(LEVELS[G.lvl].key);
+  $("progWrap").classList.toggle("hidden", G.mode === "endless");
+}
+let hudAcc = 0;
+function updateHUD(dt){
+  hudAcc += dt; if (hudAcc < 0.1) return; hudAcc = 0;
+  const p = G.player; if (!p) return;
+  $("sizeVal").textContent = fmtSize(displayCm(p.rd));
+  if (G.mode === "level") {
+    const pct = G.total ? G.eaten / G.total : 0;
+    $("progFill").style.width = (pct * 100).toFixed(1) + "%";
+    $("progTxt").textContent = t("left", { n: G.total - G.eaten });
+    $("timeBox").textContent = fmtTime(G.time);
+  } else {
+    $("timeBox").textContent = t("best") + " " + fmtSize(Math.max(SAVE.endlessBest, p.r) * 0.2);
+  }
+}
+let toastTimer = 0;
+function showToast(msg, ms){ if (G.state === "cover") return; const el = $("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), ms || 1800); }
+
+const OVERLAYS = ["pauseOv", "levelsOv", "shopOv", "clearOv", "runOv"];
+function showOverlay(id){ if (id) { clearTimeout(toastTimer); $("toast").classList.remove("show"); } for (const o of OVERLAYS) $(o).classList.toggle("hidden", o !== id); const el = id && $(id); if (el) { const b = el.querySelector(".btn"); if (b) setTimeout(() => { try { b.focus({ preventScroll: true }); } catch (_) {} }, 30); } }
+
+function resumePlay(){
+  showOverlay(null);
+  hud.classList.remove("hidden");
+  G.state = "play";
+  setGameplay(true);
+  try { cvs.focus({ preventScroll: true }); } catch (_) {}
+}
+function pauseGame(){
+  if (G.state !== "play") return;
+  G.state = "paused"; input.active = false; input.keys.clear();
+  setGameplay(false);
+  renderPauseMenu(); showOverlay("pauseOv");
+}
+function renderPauseMenu(){
+  $("endRunBtn").classList.toggle("hidden", G.mode !== "endless");
+  $("sfxBtn").textContent = t("sound") + ": " + (SAVE.sfx ? t("on") : t("off"));
+  $("musicBtn").textContent = t("music") + ": " + (SAVE.music ? t("on") : t("off"));
+}
+
+function starsFor(idx, time){ const [a, b] = PAR[idx]; return time <= a ? 3 : time <= b ? 2 : 1; }
+function levelComplete(){
+  if (G.state !== "play") return;
+  G.state = "complete"; setGameplay(false); input.active = false;
+  const idx = G.lvl, time = G.time, stars = starsFor(idx, time);
+  const first = SAVE.stars[idx] === 0;
+  SAVE.stars[idx] = Math.max(SAVE.stars[idx], stars);
+  if (!SAVE.bestTime[idx] || time < SAVE.bestTime[idx]) SAVE.bestTime[idx] = Math.round(time * 10) / 10;
+  if (idx + 2 > SAVE.unlocked && idx + 1 < LEVELS.length) SAVE.unlocked = idx + 2;
+  const coins = (first ? 20 : 8) + stars * 8 + Math.floor(G.total / 20);
+  SAVE.coins += coins; G.coinsEarned = coins; G.doubled = false; G.rewardedThisScreen = false;
+  const last = idx === LEVELS.length - 1;
+  if (last && !SAVE.finished) { SAVE.finished = true; sdkCall(s => s.game.happytime()); }
+  writeSave();
+  sdkCall(s => s.game.reportGameCompletedPercentage(Math.round(100 * SAVE.stars.filter(x => x > 0).length / LEVELS.length)));
+  Sound.win(); Sound.coin();
+  $("clearTitle").textContent = last ? t("final") : t("clear");
+  const st = $("clearStars").children; for (let i = 0; i < 3; i++) { st[i].classList.remove("on"); setTimeout(() => st[i].classList.toggle("on", i < stars), 250 + i * 220); }
+  $("clearTime").textContent = fmtTime(time);
+  $("clearSize").textContent = fmtSize(displayCm(G.player.r));
+  $("clearCoins").textContent = "+" + coins;
+  $("nextBtn").textContent = last ? "🌌 " + t("endless") : t("next");
+  refreshDoubleBtn();
+  hud.classList.add("hidden");
+  showOverlay("clearOv");
+}
+function refreshDoubleBtn(){
+  const b = $("doubleBtn");
+  b.classList.toggle("hidden", !adsAvailable() && !G.doubled);
+  b.disabled = G.doubled;
+  b.querySelector(".ad").classList.toggle("hidden", G.doubled);
+  $("doubleTxt").textContent = G.doubled ? t("doubled") + " ✓" : t("double");
+}
+
+async function goNext(fromCompleteScreen){
+  // Midgame ad at the level transition. Skipped if the player just watched a rewarded ad here.
+  if (fromCompleteScreen && !G.rewardedThisScreen) await showAd("midgame");
+  const last = G.lvl >= LEVELS.length - 1;
+  if (last) startEndless(); else startLevel(Math.min(G.lvl + 1, SAVE.unlocked - 1));
+}
+
+function endRun(){
+  if (G.mode !== "endless") return;
+  G.state = "results"; setGameplay(false);
+  const r = G.player.r, size = displayCm(r);
+  const prevBest = SAVE.endlessBest;
+  const coins = r < R0 * 1.5 ? 0 : Math.max(5, Math.floor(Math.log2(r / R0) * 9)); // no coins for an instant quit
+  SAVE.coins += coins;
+  if (r > SAVE.endlessBest) SAVE.endlessBest = r;
+  writeSave();
+  $("runTitle").textContent = r > prevBest && prevBest > 0 ? t("newBest") : t("runOver");
+  $("runSize").textContent = fmtSize(size);
+  $("runBest").textContent = fmtSize(displayCm(SAVE.endlessBest));
+  $("runCoins").textContent = "+" + coins;
+  Sound.coin();
+  hud.classList.add("hidden");
+  showOverlay("runOv");
+}
+
+function renderLevels(){
+  const grid = $("levelGrid"); grid.innerHTML = "";
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement("button"); b.className = "lvl" + (G.mode === "level" && G.lvl === i ? " cur" : "");
+    const open = i < SAVE.unlocked;
+    b.disabled = !open;
+    b.innerHTML = '<span class="e">' + (open ? L.icon : "🔒") + '</span><span class="n">' + (i + 1) + ". " + t(L.key) + '</span><span class="st">' + "★".repeat(SAVE.stars[i]) + "☆".repeat(3 - SAVE.stars[i]) + "</span>";
+    b.setAttribute("aria-label", t("level", { n: i + 1 }) + " " + t(L.key));
+    b.onclick = () => { Sound.click(); startLevel(i); };
+    grid.appendChild(b);
+  });
+  const endlessOpen = SAVE.unlocked >= 4 || SAVE.finished;
+  const e = document.createElement("button"); e.className = "lvl" + (G.mode === "endless" ? " cur" : ""); e.disabled = !endlessOpen;
+  e.innerHTML = '<span class="e">' + (endlessOpen ? "🌌" : "🔒") + '</span><span class="n">' + t("endless") + '</span><span class="st">' + (endlessOpen ? (SAVE.endlessBest ? t("best") + " " + fmtSize(SAVE.endlessBest * 0.2) : "") : t("locked")) + "</span>";
+  e.onclick = () => { Sound.click(); startEndless(); };
+  grid.appendChild(e);
+}
+
+let shopTimer = 0;
+function renderShop(){
+  $("shopCoins").textContent = "🪙 " + SAVE.coins;
+  const grid = $("skinGrid"); grid.innerHTML = "";
+  SKINS.forEach((sk, i) => {
+    const b = document.createElement("button"); const owned = SAVE.skins.includes(i);
+    b.className = "skin" + (SAVE.skin === i ? " eq" : "");
+    const c = document.createElement("canvas"); c.width = c.height = 80;
+    const g = c.getContext("2d"); g.translate(40, 40); drawSkinBody(g, 60, i, 0); drawFace(g, 60, i, { happy: SAVE.skin === i });
+    const lbl = document.createElement("span"); lbl.className = "p";
+    lbl.textContent = SAVE.skin === i ? "✓ " + t("sk" + i) : owned ? t("sk" + i) : "🪙 " + sk.price;
+    b.appendChild(c); b.appendChild(lbl);
+    b.setAttribute("aria-label", t("sk" + i) + (owned ? "" : ", " + sk.price + " coins"));
+    b.onclick = () => {
+      if (owned) { SAVE.skin = i; writeSave(); Sound.click(); renderShop(); return; }
+      if (SAVE.coins >= sk.price) { SAVE.coins -= sk.price; SAVE.skins.push(i); SAVE.skin = i; writeSave(); Sound.coin(); renderShop(); }
+      else showToast(t("needCoins"), 2200);
+    };
+    grid.appendChild(b);
+  });
+  refreshFreeCoins();
+}
+const FREE_COINS = 40, FREE_COOLDOWN = 180;
+function refreshFreeCoins(){
+  const b = $("freeCoinsBtn");
+  if (!adsAvailable()) { b.classList.add("hidden"); return; }
+  b.classList.remove("hidden");
+  const left = Math.ceil((SAVE.freeAdAt || 0) + FREE_COOLDOWN - Date.now() / 1000);
+  if (left > 0) { b.disabled = true; $("freeCoinsTxt").textContent = t("wait", { s: fmtTime(left) }); b.querySelector(".ad").classList.add("hidden"); }
+  else { b.disabled = false; $("freeCoinsTxt").textContent = t("freeCoins", { n: FREE_COINS }); b.querySelector(".ad").classList.remove("hidden"); }
+}
+
+/* ---------- button wiring ---------- */
+function on(id, fn){ $(id).addEventListener("click", e => { e.preventDefault(); Sound.ensure(); fn(e); }); }
+on("pauseBtn", () => { Sound.click(); pauseGame(); });
+on("resumeBtn", () => { Sound.click(); resumePlay(); });
+on("levelsBtn", () => { Sound.click(); G.returnTo = "pauseOv"; renderLevels(); showOverlay("levelsOv"); });
+on("levelsBack", () => { Sound.click(); backToMenu(); });
+on("shopBtn", () => { Sound.click(); G.returnTo = "pauseOv"; renderShop(); showOverlay("shopOv"); clearInterval(shopTimer); shopTimer = setInterval(() => { if (!$("shopOv").classList.contains("hidden")) refreshFreeCoins(); else clearInterval(shopTimer); }, 1000); });
+on("shopBack", () => { Sound.click(); backToMenu(); });
+on("sfxBtn", () => { SAVE.sfx = !SAVE.sfx; writeSave(); Sound.apply(); Sound.click(); renderPauseMenu(); });
+on("musicBtn", () => { SAVE.music = !SAVE.music; writeSave(); Sound.apply(); Sound.click(); renderPauseMenu(); });
+on("endRunBtn", () => { Sound.click(); endRun(); });
+on("nextBtn", () => { Sound.click(); goNext(true); });
+on("replayBtn", async () => { Sound.click(); if (!G.rewardedThisScreen) await showAd("midgame"); startLevel(G.lvl); });
+on("clearMenuBtn", () => { Sound.click(); G.returnTo = "clearOv"; renderLevels(); showOverlay("levelsOv"); });
+on("runAgainBtn", async () => { Sound.click(); await showAd("midgame"); startEndless(); });
+on("runMenuBtn", () => { Sound.click(); G.returnTo = "runOv"; renderLevels(); showOverlay("levelsOv"); });
+on("doubleBtn", async () => {
+  if (G.doubled || !adsAvailable()) return;
+  const ok = await showAd("rewarded");
+  if (ok) { SAVE.coins += G.coinsEarned; writeSave(); G.doubled = true; G.rewardedThisScreen = true; $("clearCoins").textContent = "+" + G.coinsEarned * 2; Sound.coin(); showToast(t("doubled") + " 🪙", 1800); }
+  else showToast(t("noAd"), 2600);
+  refreshDoubleBtn();
+});
+on("freeCoinsBtn", async () => {
+  if (!adsAvailable()) return;
+  const left = (SAVE.freeAdAt || 0) + FREE_COOLDOWN - Date.now() / 1000; if (left > 0) return;
+  const ok = await showAd("rewarded");
+  if (ok) { SAVE.coins += FREE_COINS; SAVE.freeAdAt = Math.floor(Date.now() / 1000); writeSave(); Sound.coin(); showToast("+" + FREE_COINS + " 🪙", 1800); }
+  else showToast(t("noAd"), 2600);
+  renderShop();
+});
+function backToMenu(){
+  // Return to the screen the submenu was opened from (pause menu, level clear, or run results).
+  const to = G.returnTo || "pauseOv";
+  if (to === "pauseOv") renderPauseMenu();
+  showOverlay(to);
+}
+document.addEventListener("visibilitychange", () => {
+  // Auto-pause when the tab is hidden. gameplayStop is not sent for focus changes (CrazyGames handles those);
+  // it is sent once the player is back and looking at the pause menu.
+  if (document.hidden && G.state === "play") { G.state = "paused"; input.active = false; input.keys.clear(); renderPauseMenu(); showOverlay("pauseOv"); }
+  else if (!document.hidden && G.state === "paused") setGameplay(false);
+});
+
+/* =========================================================================
+   Onboarding hint (in gameplay, no extra screens)
+   ========================================================================= */
+let hintShown = false, hintFading = false;
+function updateHint(){
+  const el = $("hint");
+  if (hintFading) return;
+  if (SAVE.tutorial || G.state !== "play" || G.mode !== "level") { if (hintShown) { el.classList.add("hidden"); hintShown = false; } return; }
+  if (!hintShown) {
+    const touch = matchMedia("(pointer:coarse)").matches;
+    el.innerHTML = (touch ? "👆 " + t("hintTouch") : "⌨️ " + t("hintKeys")) + "<small>" + t("hintGoal") + "</small>";
+    el.style.opacity = "1"; el.classList.remove("hidden"); hintShown = true;
+  }
+  if (G.moved > 1.5 && G.eaten >= 3) {
+    SAVE.tutorial = true; writeSave(); hintFading = true; el.style.opacity = "0";
+    setTimeout(() => { el.classList.add("hidden"); hintFading = false; hintShown = false; }, 600);
+  }
+}
+
+/* =========================================================================
+   Main loop
+   ========================================================================= */
+let last = performance.now(), acc = 0;
+function frame(now){
+  if (G.state === "cover") { requestAnimationFrame(frame); return; } // debug capture drives rendering itself
+  try {
+    let dt = (now - last) / 1000; last = now;
+    if (dt > 0.1) dt = 0.1;
+    if (G.state === "play" && G.player && !CG.adActive) {
+      acc += dt;
+      while (acc >= STEP) { step(STEP); acc -= STEP; }
+      const eatLim = G.player.r * EAT_RATIO;
+      G.noTargetTimer = G.visibleEatable ? 0 : G.noTargetTimer + dt;
+      void eatLim;
+    } else acc = 0;
+    Sound.musicTick(dt, G.state === "play" && !CG.adActive);
+    render(now, dt);
+    if (G.state === "play") updateHUD(dt);
+    updateHint();
+  } catch (e) { if (DEBUG) console.error(e); }
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================================
+   Boot
+   ========================================================================= */
+function setLang(loc){ const l = String(loc || "").toLowerCase().slice(0, 2); LANG = STR[l] ? l : "en"; document.documentElement.lang = LANG; }
+function applyStaticText(){
+  $("sizeLbl").textContent = t("size");
+  $("resumeBtn").textContent = t("resume"); $("levelsBtn").textContent = t("levels"); $("shopBtn").textContent = t("shop");
+  $("endRunBtn").textContent = t("endRun"); $("levelsTitle").textContent = t("levels"); $("shopTitle").textContent = t("shop");
+  $("levelsBack").textContent = t("back"); $("shopBack").textContent = t("back");
+  $("clearTimeLbl").textContent = t("time"); $("clearSizeLbl").textContent = t("size");
+  $("replayBtn").textContent = t("replay"); $("clearMenuBtn").textContent = t("menu");
+  $("runSizeLbl").textContent = t("size"); $("runBestLbl").textContent = t("best");
+  $("runAgainBtn").textContent = t("again"); $("runMenuBtn").textContent = t("menu");
+  $("loadingTxt").textContent = t("loading");
+  $("pauseBtn").setAttribute("aria-label", t("paused"));
+  const logo = $("pauseLogo"); logo.innerHTML = "";
+  // one word per sticker, each tipped a little as if it is rolling
+  [["Roll", -4, "#ff5a36"], ["It", 3, "#ffd84d"], ["Up!", -2, "#2340d8"]].forEach(([w, deg, col]) => {
+    const s = document.createElement("span"); s.textContent = w; s.style.color = col; s.style.transform = "rotate(" + deg + "deg)"; logo.appendChild(s); });
+}
+
+async function boot(){
+  setLang(navigator.language);
+  await initSDK();
+  sdkCall(s => s.game.loadingStart());
+  loadSave();
+  applyStaticText();
+  computeDisplayChain();
+  // warm the sprite cache for the first level
+  for (const tier of THEMES[LEVELS[SAVE.lastLevel].theme].tiers) for (const em of tier) { sprite(em, 40); sprite(em, 100); }
+  sdkCall(s => s.game.loadingStop());
+  $("loading").classList.add("hidden");
+  // Land directly in gameplay: the level the player was last on (level 1 for new players)
+  startLevel(SAVE.lastLevel);
+  requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
+}
+
+/* =========================================================================
+   Debug hooks (only with ?debug=1) — used for automated balance tests
+   ========================================================================= */
+
+
+boot();
+})();
+</script>
+</body>
+</html>
